@@ -177,7 +177,7 @@ caracteristicas_escaladas = scaler.fit_transform(df_movies_sistema[["vote_averag
 
 caracteristicas = np.hstack([encoded_lang, caracteristicas_escaladas])
 
-coseno_sim = cosine_similarity(caracteristicas[:10000, ::])
+coseno_sim = cosine_similarity(caracteristicas[:3000, ::])
 
 # Creo un mapeo entre títulos y sus índices
 title_to_index = pd.Series(df_movies.index, index=df_movies['title']).to_dict()
