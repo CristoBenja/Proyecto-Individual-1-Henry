@@ -1,6 +1,11 @@
 ## Importo las librerías a utilizar
 from fastapi import FastAPI, HTTPException
+import numpy as np
 import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from scipy.sparse import csr_matrix
 
 ## Instancio el objeto FastAPI() 
 app = FastAPI()
@@ -157,3 +162,42 @@ def get_director(nombre_director: str):
             "Ha conseguido un retorno total de": retorno_total,
             "Peliculas en las que ha trabajado": peli_retor_cost_gananc_fecha
             }
+
+
+# Sistema de recomendación
+
+df_movies = pd.read_csv("Movies_ETL.csv")
+df_movies_sistema = df_movies[["original_language", "vote_average", "release_year"]]
+
+encoder = OneHotEncoder(sparse_output=False)
+encoded_lang = encoder.fit_transform(df_movies_sistema[['original_language']])
+
+scaler = StandardScaler()
+caracteristicas_escaladas = scaler.fit_transform(df_movies_sistema[["vote_average", "release_year"]])
+
+caracteristicas = np.hstack([encoded_lang, caracteristicas_escaladas])
+
+coseno_sim = cosine_similarity(caracteristicas[:10000, ::])
+
+# Creo un mapeo entre títulos y sus índices
+title_to_index = pd.Series(df_movies.index, index=df_movies['title']).to_dict()
+
+@app.get("/recomendar_peliculas/")
+def recomendar_peliculas(titulo: str, top_n: int):
+    if titulo not in title_to_index:
+        return "Título no encontrado en el dataset."
+    
+    idx = title_to_index[titulo]
+    sim_scores = list(enumerate(coseno_sim[idx]))
+    
+    # Se ordenan las películas basadas en la similitud
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+    
+    # Se obtienen las puntuaciones de las top_n películas
+    sim_scores = sim_scores[1:top_n+1]  # Excluyendo el propio título
+    movie_indices = [i[0] for i in sim_scores]
+    
+    # Se obtienen los títulos de las películas recomendadas
+    recomendadas = df_movies['title'].iloc[movie_indices].tolist()
+    
+    return {"Películas recomendadas": recomendadas}
